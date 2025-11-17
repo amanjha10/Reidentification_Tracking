@@ -25,9 +25,7 @@ from flask import Flask, jsonify
 # Import ReID module
 from person_reid import PersonReIDManager
 
-# -----------------------------------------------------
-# CONFIG
-# -----------------------------------------------------
+
 MODEL_PATH = "yolov8n.pt"     # ✅ MUST BE .pt file
 DEVICE = "cpu"
 
@@ -59,9 +57,7 @@ REID_CONFIG = {
     "reid_skip_frames": 10,        # Process ReID every N frames to reduce load
 }
 
-# -----------------------------------------------------
-# LOGGING
-# -----------------------------------------------------
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s"
