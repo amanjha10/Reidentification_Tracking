@@ -28,11 +28,11 @@ class UserRegister(BaseModel):
     password: str
 
 class CameraInfo(BaseModel):
-    camera_id: str      # ex: 192.168.1.5
+    camera_id: str      
     username: str
     password: str
-    port: int           # ex: 554
-    stream: str         # ex: stream1
+    port: int           
+    stream: str         
 
 
 # =============================
