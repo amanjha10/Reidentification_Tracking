@@ -1,0 +1,2327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - AI Tracking System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --border-color: #e0e0e0;
+            --sidebar-width: 260px;
+            --topbar-height: 70px;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a2e;
+            --card-bg: #16213e;
+            --text-color: #eee;
+            --border-color: #2a2a3e;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            transition: background 0.3s ease;
+        }
+
+        /* Top Navigation */
+        .topbar {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            height: var(--topbar-height);
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 100;
+            box-shadow: var(--shadow);
+        }
+
+        .dashboard-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-color);
+        }
+
+        .notification-icon {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #f44336;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .datetime-widget {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .profile-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .profile-photo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .profile-dropdown {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            min-width: 200px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .profile-dropdown.active {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dropdown-item:hover {
+            background: var(--bg-color);
+        }
+
+        .dropdown-item:first-child {
+            border-radius: 10px 10px 0 0;
+        }
+
+        .dropdown-item:last-child {
+            border-radius: 0 0 10px 10px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 20px 0;
+            overflow-y: auto;
+            z-index: 101;
+        }
+
+        .sidebar-logo {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .sidebar-logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .sidebar-logo-text {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+        }
+
+        .sidebar-item {
+            padding: 14px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-item:hover {
+            background: var(--bg-color);
+        }
+
+        .sidebar-item.active {
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.1), transparent);
+            border-left-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--topbar-height);
+            padding: 30px;
+            min-height: calc(100vh - var(--topbar-height));
+        }
+
+        /* Summary Cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .card-title {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .card-change {
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .card-change.positive {
+            color: #4caf50;
+        }
+
+        .card-change.negative {
+            color: #f44336;
+        }
+
+        /* Filters Section */
+        .filters-section {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-size: 0.95rem;
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        /* Charts Section */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Data Table */
+        .table-section {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .search-box {
+            padding: 10px 15px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            min-width: 250px;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            background: var(--bg-color);
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .data-table td {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table tr:hover {
+            background: var(--bg-color);
+        }
+
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-in {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status-out {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .pagination button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* RTSP Configuration */
+        .rtsp-form {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-size: 0.95rem;
+        }
+
+        .form-group select {
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+
+        .settings-input,
+        .settings-select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-size: 0.95rem;
+        }
+
+        .settings-select {
+            cursor: pointer;
+        }
+
+        .generated-url {
+            background: var(--bg-color);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .generated-url.show {
+            display: block;
+        }
+
+        .camera-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .camera-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s;
+        }
+
+        .camera-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .camera-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .camera-url {
+            color: #666;
+            font-size: 0.9rem;
+            word-break: break-all;
+            margin-bottom: 15px;
+        }
+
+        .camera-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Surveillance */
+        .surveillance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .video-tile {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .video-tile:hover {
+            transform: scale(1.02);
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .video-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            width: 90%;
+            max-width: 1400px;
+            max-height: 95vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+        
+        /* Responsive modal styling */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                padding: 15px;
+                max-height: 90vh;
+            }
+            
+            .video-wrapper {
+                height: 50vh !important;
+                min-height: 300px !important;
+            }
+            
+            .modal-header h2 {
+                font-size: 1.2rem;
+            }
+        }
+        
+        /* Fullscreen modal styling */
+        .modal:fullscreen .modal-content {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
+            border-radius: 0;
+            padding: 10px;
+        }
+        
+        .modal:fullscreen .video-wrapper {
+            height: calc(100vh - 80px) !important;
+            border-radius: 0;
+        }
+
+        /* Hidden sections */
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @media (max-width: 968px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .topbar {
+                left: 0;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .summary-cards,
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation -->
+    <div class="topbar">
+        <h1 class="dashboard-title">AI Tracking System Dashboard</h1>
+        <div class="topbar-right">
+            <button class="theme-toggle" onclick="toggleTheme()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+            </button>
+            
+            <div class="notification-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="notification-badge">3</span>
+            </div>
+
+            <div class="datetime-widget" id="datetimeWidget"></div>
+
+            <div class="profile-section" onclick="toggleProfileDropdown()">
+                <div class="profile-photo">AD</div>
+                <span id="userEmail">admin@example.com</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m6 9 6 6 6-6"/>
+                </svg>
+                
+                <div class="profile-dropdown" id="profileDropdown">
+                    <div class="dropdown-item" onclick="showSection('settings')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6M12 17v6M5.64 5.64l4.24 4.24M14.12 14.12l4.24 4.24M1 12h6M17 12h6M5.64 18.36l4.24-4.24M14.12 9.88l4.24-4.24"/>
+                        </svg>
+                        Settings
+                    </div>
+                    <div class="dropdown-item" onclick="logout()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                            <polyline points="16 17 21 12 16 7"/>
+                            <line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                        Logout
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                </svg>
+            </div>
+            <span class="sidebar-logo-text">AI Track</span>
+        </div>
+
+        <ul class="sidebar-menu">
+            <li class="sidebar-item active" onclick="showSection('dashboard')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                Dashboard
+            </li>
+            <li class="sidebar-item" onclick="showSection('rtsp')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+                RTSP Configuration
+            </li>
+            <li class="sidebar-item" onclick="showSection('surveillance')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="23 7 16 12 23 17 23 7"/>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+                Surveillance
+            </li>
+            <li class="sidebar-item" onclick="showSection('reports')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                Reports
+            </li>
+            <li class="sidebar-item" onclick="showSection('settings')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6M12 17v6M5.64 5.64l4.24 4.24M14.12 14.12l4.24 4.24M1 12h6M17 12h6M5.64 18.36l4.24-4.24M14.12 9.88l4.24-4.24"/>
+                </svg>
+                Settings
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Dashboard Section -->
+        <div class="content-section active" id="dashboardSection">
+            <!-- Summary Cards -->
+            <div class="summary-cards">
+                <div class="summary-card">
+                    <div class="card-title">Total IN Today</div>
+                    <div class="card-value" id="totalInToday">245</div>
+                    <div class="card-change positive">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="18 15 12 9 6 15"/>
+                        </svg>
+                        +12% from yesterday
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-title">Total OUT Today</div>
+                    <div class="card-value" id="totalOutToday">198</div>
+                    <div class="card-change negative">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                        -5% from yesterday
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-title">Total IN This Month</div>
+                    <div class="card-value" id="totalInMonth">6,842</div>
+                    <div class="card-change positive">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="18 15 12 9 6 15"/>
+                        </svg>
+                        +18% from last month
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-title">Total OUT This Month</div>
+                    <div class="card-value" id="totalOutMonth">6,521</div>
+                    <div class="card-change positive">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="18 15 12 9 6 15"/>
+                        </svg>
+                        +15% from last month
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="filters-section">
+                <h3 style="margin-bottom: 15px;">Filters</h3>
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label>Time Range</label>
+                        <select id="timeRange" onchange="applyFilters()">
+                            <option value="today">Today</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly" selected>Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="yearly">Yearly</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>From Date</label>
+                        <input type="date" id="fromDate">
+                    </div>
+                    <div class="filter-group">
+                        <label>To Date</label>
+                        <input type="date" id="toDate">
+                    </div>
+                    <div class="filter-group">
+                        <label>Camera</label>
+                        <select id="cameraFilter" onchange="applyFilters()">
+                            <option value="all">All Cameras</option>
+                            <option value="cam1">Main Entrance</option>
+                            <option value="cam2">Back Door</option>
+                            <option value="cam3">Parking Lot</option>
+                        </select>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                        <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-title">IN vs OUT Over Time</div>
+                    <div class="chart-container">
+                        <canvas id="lineChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Weekly Entries</div>
+                    <div class="chart-container">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Distribution</div>
+                    <div class="chart-container">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Camera Activity</div>
+                    <div class="chart-container">
+                        <canvas id="doughnutChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="table-section">
+                <div class="table-header">
+                    <h3>Recent Activity</h3>
+                    <input type="text" class="search-box" placeholder="Search..." id="searchInput" onkeyup="searchTable()">
+                    <div class="export-buttons">
+                        <button class="btn btn-secondary" onclick="exportCSV()">Export CSV</button>
+                        <button class="btn btn-secondary" onclick="exportPDF()">Export PDF</button>
+                    </div>
+                </div>
+                <table class="data-table" id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Person ID</th>
+                            <th>Camera Name</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Data will be populated by JavaScript -->
+                    </tbody>
+                </table>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </div>
+
+        <!-- RTSP Configuration Section -->
+        <div class="content-section" id="rtspSection">
+            <h2 style="margin-bottom: 20px;">RTSP Configuration</h2>
+            
+            <div class="rtsp-form">
+                <h3 style="margin-bottom: 20px;">Add New Camera</h3>
+                <form id="rtspForm" onsubmit="addCamera(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Camera Name *</label>
+                            <input type="text" id="cameraName" placeholder="e.g., Main Entrance" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Admin Username *</label>
+                            <input type="text" id="adminUsername" placeholder="admin" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Password *</label>
+                            <input type="password" id="adminPassword" placeholder="Enter password" required>
+                        </div>
+                        <div class="form-group">
+                            <label>IP Address *</label>
+                            <input type="text" id="ipAddress" placeholder="192.168.1.100" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Port *</label>
+                            <input type="text" id="port" placeholder="554" value="554" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Stream Path *</label>
+                            <input type="text" id="streamPath" placeholder="/stream1" value="/stream1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Camera Type *</label>
+                            <select id="cameraType" required>
+                                <option value="">Select Type</option>
+                                <option value="IN">IN Camera</option>
+                                <option value="OUT">OUT Camera</option>
+                                <option value="BOTH">IN/OUT Camera</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="margin-top: 15px;">Generate & Add Camera</button>
+                </form>
+                
+                <div class="generated-url" id="generatedUrl">
+                    <strong>Generated RTSP URL:</strong>
+                    <p id="rtspUrlDisplay" style="margin-top: 10px; word-break: break-all;"></p>
+                </div>
+            </div>
+
+            <h3 style="margin: 30px 0 20px;">Configured Cameras</h3>
+            <div class="table-section">
+                <div class="table-header">
+                    <input type="text" class="search-box" placeholder="Search cameras..." id="cameraSearchInput" onkeyup="searchCameraTable()">
+                    <div class="export-buttons">
+                        <button class="btn btn-secondary" onclick="exportCameraCSV()">Export CSV</button>
+                    </div>
+                </div>
+                <table class="data-table" id="cameraTable">
+                    <thead>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Camera Name</th>
+                            <th>IP Address</th>
+                            <th>Port</th>
+                            <th>Type</th>
+                            <th>RTSP URL</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cameraTableBody">
+                        <!-- Camera data will be populated here -->
+                    </tbody>
+                </table>
+                <div class="pagination" id="cameraPagination"></div>
+            </div>
+        </div>
+
+        <!-- Surveillance Section -->
+        <div class="content-section" id="surveillanceSection">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Live Surveillance</h2>
+                <button onclick="refreshSurveillanceGrid()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px;">
+                    🔄 Refresh Cameras
+                </button>
+            </div>
+            <div class="surveillance-grid" id="surveillanceGrid">
+                <!-- Dynamic camera feeds from database -->
+                {% if cameras %}
+                    {% for camera in cameras %}
+                    <div class="video-tile" data-camera-id="{{ camera.id }}" data-camera-name="{{ camera.name }}" onclick="openVideoModalSafe(this)">
+                        <div class="video-wrapper">
+                            <iframe 
+                                src="/stream/{{ camera.id }}" 
+                                frameborder="0" 
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000;"
+                                allowfullscreen>
+                            </iframe>
+                            <div class="video-overlay">{{ camera.name }} - {{ camera.camera_type }}</div>
+                        </div>
+                        <div style="font-weight: 600; margin-top: 10px;">{{ camera.name }} - {{ camera.description or camera.camera_type }}</div>
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- Fill remaining slots with placeholder iframes if less than 4 cameras -->
+                    {% for i in range(4 - cameras|length) %}
+                    <div class="video-tile">
+                        <div class="video-wrapper">
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #333; display: flex; align-items: center; justify-content: center; color: #666;">
+                                <div style="text-align: center;">
+                                    <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                                    <div>No Camera Configured</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="font-weight: 600; margin-top: 10px; color: #666;">Camera Slot {{ cameras|length + loop.index }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <!-- Default placeholder when no cameras configured -->
+                    {% for i in range(4) %}
+                    <div class="video-tile">
+                        <div class="video-wrapper">
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #333; display: flex; align-items: center; justify-content: center; color: #666;">
+                                <div style="text-align: center;">
+                                    <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                                    <div>No Camera Configured</div>
+                                    <small style="margin-top: 5px; display: block;">Go to Camera Management to add cameras</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="font-weight: 600; margin-top: 10px; color: #666;">Camera Slot {{ loop.index }}</div>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Reports Section -->
+        <div class="content-section" id="reportsSection">
+            <h2 style="margin-bottom: 20px;">Reports</h2>
+            
+            <div class="summary-cards">
+                <div class="summary-card" onclick="generateReport('weekly')">
+                    <div class="card-title">Weekly Report</div>
+                    <div class="card-value">1,842</div>
+                    <button class="btn btn-primary" style="margin-top: 15px; width: 100%;">Generate Report</button>
+                </div>
+                <div class="summary-card" onclick="generateReport('monthly')">
+                    <div class="card-title">Monthly Report</div>
+                    <div class="card-value">7,363</div>
+                    <button class="btn btn-primary" style="margin-top: 15px; width: 100%;">Generate Report</button>
+                </div>
+                <div class="summary-card" onclick="generateReport('quarterly')">
+                    <div class="card-title">Quarterly Report</div>
+                    <div class="card-value">22,089</div>
+                    <button class="btn btn-primary" style="margin-top: 15px; width: 100%;">Generate Report</button>
+                </div>
+                <div class="summary-card" onclick="generateReport('yearly')">
+                    <div class="card-title">Yearly Report</div>
+                    <div class="card-value">88,356</div>
+                    <button class="btn btn-primary" style="margin-top: 15px; width: 100%;">Generate Report</button>
+                </div>
+            </div>
+
+            <div class="table-section" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 20px;">Report History</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Report Type</th>
+                            <th>Date Generated</th>
+                            <th>Period</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Monthly Report</td>
+                            <td>2025-11-01</td>
+                            <td>October 2025</td>
+                            <td>
+                                <button class="btn btn-secondary">Download PDF</button>
+                                <button class="btn btn-secondary">Download CSV</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Weekly Report</td>
+                            <td>2025-10-28</td>
+                            <td>Week 43, 2025</td>
+                            <td>
+                                <button class="btn btn-secondary">Download PDF</button>
+                                <button class="btn btn-secondary">Download CSV</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div class="content-section" id="settingsSection">
+            <h2 style="margin-bottom: 20px;">Settings</h2>
+            
+            <div class="rtsp-form">
+                <h3 style="margin-bottom: 20px;">General Settings</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Company Name</label>
+                        <input type="text" value="AI Tracking System" class="settings-input">
+                    </div>
+                    <div class="form-group">
+                        <label>Timezone</label>
+                        <select class="settings-select">
+                            <option value="utc+545">UTC+5:45 (Kathmandu)</option>
+                            <option value="utc+0">UTC+0 (GMT)</option>
+                            <option value="utc-5">UTC-5 (EST)</option>
+                            <option value="utc+1">UTC+1 (CET)</option>
+                            <option value="utc+8">UTC+8 (SGT)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date Format</label>
+                        <select class="settings-select">
+                            <option value="yyyy-mm-dd">YYYY-MM-DD</option>
+                            <option value="dd/mm/yyyy">DD/MM/YYYY</option>
+                            <option value="mm/dd/yyyy">MM/DD/YYYY</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Language</label>
+                        <select class="settings-select">
+                            <option value="en">English</option>
+                            <option value="ne">Nepali</option>
+                            <option value="hi">Hindi</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+            </div>
+
+            <div class="rtsp-form" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 20px;">Notification Settings</h3>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" checked style="width: auto; cursor: pointer;">
+                        <span>Email notifications for unusual activity</span>
+                    </label>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" checked style="width: auto; cursor: pointer;">
+                        <span>Daily summary reports</span>
+                    </label>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" style="width: auto; cursor: pointer;">
+                        <span>SMS alerts for critical events</span>
+                    </label>
+                </div>
+                <button class="btn btn-primary" onclick="saveNotifications()">Save Notifications</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Modal -->
+    <div class="modal" id="videoModal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 id="modalCameraName">Camera View</h2>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button onclick="toggleVideoFit()" id="fitToggleBtn" style="background: #17a2b8; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px;" title="Click to show full image (may have black bars)">📐 Fit Image</button>
+                    <button onclick="toggleFullscreen()" style="background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px;">⛶ Fullscreen</button>
+                    <button class="modal-close" onclick="closeVideoModal()">&times;</button>
+                </div>
+            </div>
+            <div class="video-wrapper" style="position: relative; width: 100%; height: 75vh; background: #000; border-radius: 10px; overflow: hidden; min-height: 500px;">
+                <div class="video-placeholder" id="modalVideoPlaceholder" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem;">📹</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flask data injection -->
+    <script id="flask-data" type="application/json">
+        {
+            "username": {{ username|tojson if username else 'null' }},
+            "cameras": {{ cameras|tojson if cameras else '[]' }}
+        }
+    </script>
+    
+    <script>
+        // Load Flask data from JSON script tag
+        var flaskData = JSON.parse(document.getElementById('flask-data').textContent);
+        var username = flaskData.username;
+        var camerasData = flaskData.cameras;
+        
+        // Set user email from Flask session
+        if (username) {
+            document.getElementById('userEmail').textContent = username;
+        } else {
+            document.getElementById('userEmail').textContent = 'admin@example.com';
+        }
+
+        // Date/Time Widget
+        function updateDateTime() {
+            const now = new Date();
+            const options = { 
+                weekday: 'short', 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            document.getElementById('datetimeWidget').textContent = now.toLocaleDateString('en-US', options);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 60000);
+
+        // Theme Toggle
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        // Camera management variables
+        let cameras = [];
+        let filteredCameras = [];
+        let currentCameraPage = 1;
+        let camerasPerPage = 10;
+
+        // Load cameras from backend
+        function loadCameras() {
+            fetch('/api/cameras')
+                .then(response => response.json())
+                .then(data => {
+                    cameras = data;
+                    filteredCameras = [...cameras];
+                    updateCameraTable();
+                })
+                .catch(error => {
+                    console.error('Error loading cameras:', error);
+                    showNotification('Error loading cameras', 'error');
+                });
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 5px;
+                color: white;
+                z-index: 9999;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            switch(type) {
+                case 'success':
+                    notification.style.backgroundColor = '#4CAF50';
+                    break;
+                case 'error':
+                    notification.style.backgroundColor = '#f44336';
+                    break;
+                default:
+                    notification.style.backgroundColor = '#2196F3';
+            }
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
+        // Profile Dropdown
+        function toggleProfileDropdown() {
+            document.getElementById('profileDropdown').classList.toggle('active');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const profile = document.querySelector('.profile-section');
+            const dropdown = document.getElementById('profileDropdown');
+            if (!profile.contains(event.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+
+        // Logout
+        function logout() {
+            window.location.href = '/logout';
+        }
+
+        // Show Section
+        function showSection(section) {
+            // Remove active class from all sidebar items
+            document.querySelectorAll('.sidebar-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Add active class to clicked item - find the clicked element by section name
+            const clickedItem = document.querySelector(`.sidebar-item[onclick*="${section}"]`);
+            if (clickedItem) {
+                clickedItem.classList.add('active');
+            }
+            
+            // Hide all content sections
+            document.querySelectorAll('.content-section').forEach(sec => {
+                sec.classList.remove('active');
+            });
+            
+            // Show selected section
+            const sectionMap = {
+                'dashboard': 'dashboardSection',
+                'rtsp': 'rtspSection',
+                'surveillance': 'surveillanceSection',
+                'reports': 'reportsSection',
+                'settings': 'settingsSection'
+            };
+            
+            const targetSection = document.getElementById(sectionMap[section]);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+        }
+
+        // Dummy Data
+        const dummyData = [
+            { timestamp: '2025-11-26 14:35:21', personId: 'P001', camera: 'Main Entrance', status: 'IN' },
+            { timestamp: '2025-11-26 14:32:15', personId: 'P002', camera: 'Back Door', status: 'OUT' },
+            { timestamp: '2025-11-26 14:28:43', personId: 'P003', camera: 'Parking Lot', status: 'IN' },
+            { timestamp: '2025-11-26 14:25:12', personId: 'P004', camera: 'Main Entrance', status: 'IN' },
+            { timestamp: '2025-11-26 14:20:55', personId: 'P005', camera: 'Back Door', status: 'OUT' },
+            { timestamp: '2025-11-26 14:15:33', personId: 'P006', camera: 'Main Entrance', status: 'IN' },
+            { timestamp: '2025-11-26 14:10:21', personId: 'P007', camera: 'Parking Lot', status: 'OUT' },
+            { timestamp: '2025-11-26 14:05:44', personId: 'P008', camera: 'Main Entrance', status: 'IN' },
+        ];
+
+        // Populate Table
+        let currentPage = 1;
+        const rowsPerPage = 5;
+
+        function populateTable(data = dummyData) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const pageData = data.slice(start, end);
+            
+            pageData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.timestamp}</td>
+                    <td>${row.personId}</td>
+                    <td>${row.camera}</td>
+                    <td><span class="status-badge status-${row.status.toLowerCase()}">${row.status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            updatePagination(data.length);
+        }
+
+        function updatePagination(totalRows) {
+            const pagination = document.getElementById('pagination');
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+            
+            pagination.innerHTML = '';
+            
+            // Previous button
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = '← Previous';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    populateTable();
+                }
+            };
+            pagination.appendChild(prevBtn);
+            
+            // Page numbers
+            for (let i = 1; i <= totalPages; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.textContent = i;
+                pageBtn.className = i === currentPage ? 'active' : '';
+                pageBtn.onclick = () => {
+                    currentPage = i;
+                    populateTable();
+                };
+                pagination.appendChild(pageBtn);
+            }
+            
+            // Next button
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = 'Next →';
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    populateTable();
+                }
+            };
+            pagination.appendChild(nextBtn);
+        }
+
+        populateTable();
+
+        // Search Table
+        function searchTable() {
+            const input = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = dummyData.filter(row => 
+                row.personId.toLowerCase().includes(input) ||
+                row.camera.toLowerCase().includes(input) ||
+                row.status.toLowerCase().includes(input)
+            );
+            currentPage = 1;
+            populateTable(filtered);
+        }
+
+        // Charts
+        let lineChart, barChart, pieChart, doughnutChart;
+
+        function initCharts() {
+            // Line Chart
+            const lineCtx = document.getElementById('lineChart').getContext('2d');
+            lineChart = new Chart(lineCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'IN',
+                        data: [245, 312, 289, 356, 298, 267, 234],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'OUT',
+                        data: [198, 276, 254, 312, 267, 234, 201],
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+
+            // Bar Chart
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            barChart = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                    datasets: [{
+                        label: 'Entries',
+                        data: [1842, 1967, 2104, 1889],
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Pie Chart
+            const pieCtx = document.getElementById('pieChart').getContext('2d');
+            pieChart = new Chart(pieCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['IN', 'OUT'],
+                    datasets: [{
+                        data: [6842, 6521],
+                        backgroundColor: ['#667eea', '#764ba2']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Doughnut Chart
+            const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
+            doughnutChart = new Chart(doughnutCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Main Entrance', 'Back Door', 'Parking Lot'],
+                    datasets: [{
+                        data: [4523, 3456, 2384],
+                        backgroundColor: ['#667eea', '#764ba2', '#f093fb']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        initCharts();
+
+        // Filters
+        function applyFilters() {
+            const timeRange = document.getElementById('timeRange').value;
+            const camera = document.getElementById('cameraFilter').value;
+            
+            // Update summary cards
+            document.getElementById('totalInToday').textContent = Math.floor(Math.random() * 300 + 200);
+            document.getElementById('totalOutToday').textContent = Math.floor(Math.random() * 300 + 150);
+            document.getElementById('totalInMonth').textContent = (Math.floor(Math.random() * 3000 + 5000)).toLocaleString();
+            document.getElementById('totalOutMonth').textContent = (Math.floor(Math.random() * 3000 + 5000)).toLocaleString();
+            
+            // Update charts with new data
+            lineChart.data.datasets[0].data = Array.from({length: 7}, () => Math.floor(Math.random() * 200 + 200));
+            lineChart.data.datasets[1].data = Array.from({length: 7}, () => Math.floor(Math.random() * 200 + 150));
+            lineChart.update();
+            
+            barChart.data.datasets[0].data = Array.from({length: 4}, () => Math.floor(Math.random() * 500 + 1500));
+            barChart.update();
+            
+            alert(`Filters applied: ${timeRange}, Camera: ${camera}`);
+        }
+
+        function resetFilters() {
+            document.getElementById('timeRange').value = 'monthly';
+            document.getElementById('cameraFilter').value = 'all';
+            document.getElementById('fromDate').value = '';
+            document.getElementById('toDate').value = '';
+            applyFilters();
+        }
+
+        // RTSP Configuration - cameras loaded from backend via loadCameras() function
+        // Removed duplicate variable declarations to fix JavaScript errors
+
+        function addCamera(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('cameraName').value;
+            const username = document.getElementById('adminUsername').value;
+            const password = document.getElementById('adminPassword').value;
+            const ip = document.getElementById('ipAddress').value;
+            const port = document.getElementById('port').value;
+            const path = document.getElementById('streamPath').value;
+            const type = document.getElementById('cameraType').value;
+            
+            // URL encode password
+            const encodedPassword = encodeURIComponent(password);
+            const rtspUrl = `rtsp://${username}:${encodedPassword}@${ip}:${port}${path}`;
+            
+            // Show generated URL
+            document.getElementById('rtspUrlDisplay').textContent = rtspUrl;
+            document.getElementById('generatedUrl').classList.add('show');
+            
+            // Submit to Flask backend
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('description', '');
+            formData.append('ip_address', ip);
+            formData.append('port', port);
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('stream_path', path);
+            formData.append('camera_type', type);
+            
+            fetch('/cameras/add', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Reset form
+                    document.getElementById('rtspForm').reset();
+                    
+                    // Show success message
+                    showNotification('Camera added successfully!', 'success');
+                    
+                    // Reload cameras
+                    loadCameras();
+                    
+                    // Refresh surveillance grid with new camera
+                    refreshSurveillanceGrid();
+                    
+                    // Hide generated URL after success
+                    setTimeout(() => {
+                        document.getElementById('generatedUrl').classList.remove('show');
+                    }, 2000);
+                } else {
+                    throw new Error('Failed to add camera');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error adding camera. Please try again.', 'error');
+            });
+        }
+
+        function updateCameraTable(data = filteredCameras) {
+            const tbody = document.getElementById('cameraTableBody');
+            tbody.innerHTML = '';
+            
+            const start = (currentCameraPage - 1) * camerasPerPage;
+            const end = start + camerasPerPage;
+            const pageData = data.slice(start, end);
+            
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;">No cameras found</td></tr>';
+                return;
+            }
+            
+            pageData.forEach((camera, index) => {
+                const tr = document.createElement('tr');
+                const globalIndex = start + index + 1;
+                tr.innerHTML = `
+                    <td>${globalIndex}</td>
+                    <td><strong>${camera.name}</strong></td>
+                    <td>${camera.ip_address}</td>
+                    <td>${camera.port}</td>
+                    <td><span class="status-badge status-${camera.camera_type.toLowerCase()}">${camera.camera_type}</span></td>
+                    <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${camera.rtsp_url}">
+                        ${camera.rtsp_url}
+                    </td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 6px 12px; margin-right: 5px;" onclick="editCamera(${camera.id})">Edit</button>
+                        <button class="btn btn-secondary" style="padding: 6px 12px;" onclick="deleteCamera(${camera.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            updateCameraPagination(data.length);
+        }
+
+        function updateCameraPagination(totalRows) {
+            const pagination = document.getElementById('cameraPagination');
+            const totalPages = Math.ceil(totalRows / camerasPerPage);
+            
+            pagination.innerHTML = '';
+            
+            if (totalPages <= 1) return;
+            
+            // Previous button
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = '← Previous';
+            prevBtn.disabled = currentCameraPage === 1;
+            prevBtn.onclick = () => {
+                if (currentCameraPage > 1) {
+                    currentCameraPage--;
+                    updateCameraTable();
+                }
+            };
+            pagination.appendChild(prevBtn);
+            
+            // Page numbers
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentCameraPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage < maxVisiblePages - 1) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            if (startPage > 1) {
+                const firstBtn = document.createElement('button');
+                firstBtn.textContent = '1';
+                firstBtn.onclick = () => {
+                    currentCameraPage = 1;
+                    updateCameraTable();
+                };
+                pagination.appendChild(firstBtn);
+                
+                if (startPage > 2) {
+                    const dots = document.createElement('span');
+                    dots.textContent = '...';
+                    dots.style.padding = '8px 12px';
+                    pagination.appendChild(dots);
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.textContent = i;
+                pageBtn.className = i === currentCameraPage ? 'active' : '';
+                pageBtn.onclick = () => {
+                    currentCameraPage = i;
+                    updateCameraTable();
+                };
+                pagination.appendChild(pageBtn);
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const dots = document.createElement('span');
+                    dots.textContent = '...';
+                    dots.style.padding = '8px 12px';
+                    pagination.appendChild(dots);
+                }
+                
+                const lastBtn = document.createElement('button');
+                lastBtn.textContent = totalPages;
+                lastBtn.onclick = () => {
+                    currentCameraPage = totalPages;
+                    updateCameraTable();
+                };
+                pagination.appendChild(lastBtn);
+            }
+            
+            // Next button
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = 'Next →';
+            nextBtn.disabled = currentCameraPage === totalPages;
+            nextBtn.onclick = () => {
+                if (currentCameraPage < totalPages) {
+                    currentCameraPage++;
+                    updateCameraTable();
+                }
+            };
+            pagination.appendChild(nextBtn);
+        }
+
+        function searchCameraTable() {
+            const input = document.getElementById('cameraSearchInput').value.toLowerCase();
+            filteredCameras = cameras.filter(camera => 
+                camera.name.toLowerCase().includes(input) ||
+                camera.ip_address.toLowerCase().includes(input) ||
+                camera.camera_type.toLowerCase().includes(input)
+            );
+            currentCameraPage = 1;
+            updateCameraTable(filteredCameras);
+        }
+
+        function deleteCamera(id) {
+            if (confirm('Are you sure you want to delete this camera?')) {
+                cameras = cameras.filter(cam => cam.id !== id);
+                filteredCameras = [...cameras];
+                updateCameraTable();
+                alert('Camera deleted successfully!');
+            }
+        }
+
+        function editCamera(id) {
+            const camera = cameras.find(cam => cam.id === id);
+            if (camera) {
+                document.getElementById('cameraName').value = camera.name;
+                document.getElementById('adminUsername').value = camera.username;
+                document.getElementById('ipAddress').value = camera.ip;
+                document.getElementById('port').value = camera.port;
+                document.getElementById('streamPath').value = camera.path;
+                document.getElementById('cameraType').value = camera.type;
+                
+                // Delete old camera after editing
+                cameras = cameras.filter(cam => cam.id !== id);
+                filteredCameras = [...cameras];
+                updateCameraTable();
+                
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                alert('Camera details loaded. Modify and click "Generate & Add Camera" to update.');
+            }
+        }
+
+        function exportCameraCSV() {
+            let csv = 'S.No,Camera Name,IP Address,Port,Type,RTSP URL\n';
+            cameras.forEach((camera, index) => {
+                csv += `${index + 1},${camera.name},${camera.ip_address},${camera.port},${camera.camera_type},${camera.rtsp_url}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'cameras_config.csv';
+            a.click();
+        }
+
+        // Initialize camera table
+        updateCameraTable();
+
+        // Surveillance
+        function updateSurveillance() {
+            // The surveillance section now has default 4 iframes
+            // You can dynamically update iframe src when cameras are added
+            // Example: document.querySelector('#surveillanceGrid iframe').src = camera.rtspUrl;
+        }
+
+        function openVideoModalSafe(element) {
+            const cameraId = element.getAttribute('data-camera-id');
+            const cameraName = element.getAttribute('data-camera-name');
+            openVideoModal(cameraId, cameraName);
+        }
+
+        function openVideoModal(cameraId, cameraName) {
+            document.getElementById('modalCameraName').textContent = cameraName + ' - Live Stream';
+            
+            // Use img tag for MJPEG stream with full container coverage
+            const placeholder = document.getElementById('modalVideoPlaceholder');
+            placeholder.innerHTML = `
+                <div id="loadingIndicator" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; text-align: center; z-index: 2;">
+                    <div style="font-size: 1.2rem; margin-bottom: 10px;">🔄 Connecting to camera...</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7;">Camera ID: ${cameraId}</div>
+                </div>
+                <img 
+                    id="streamImage_${cameraId}"
+                    src="/stream/${cameraId}" 
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; background: #000; z-index: 1; border-radius: 10px;"
+                    onload="document.getElementById('loadingIndicator').style.display='none'; this.style.zIndex='3'; console.log('Stream loaded for camera ${cameraId}'); updateFitToggleButton();"
+                    onerror="handleStreamError(${cameraId});"
+                    alt="Camera ${cameraId} Stream"
+                />
+            `;
+            
+            document.getElementById('videoModal').classList.add('active');
+        }
+        
+        function handleStreamError(cameraId) {
+            console.error('Stream loading error for camera:', cameraId);
+            const placeholder = document.getElementById('modalVideoPlaceholder');
+            placeholder.innerHTML = `
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ff6b6b; text-align: center;">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">⚠️</div>
+                    <div style="font-size: 1.2rem; margin-bottom: 10px;">Stream Unavailable</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 10px;">Camera ${cameraId} is not accessible</div>
+                    <div style="font-size: 0.8rem; opacity: 0.5; margin-bottom: 15px;">Check camera connection and RTSP settings</div>
+                    <button onclick="retryStream(${cameraId})" style="margin-right: 10px; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">🔄 Retry</button>
+                    <button onclick="testStreamURL(${cameraId})" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">🔗 Test Direct</button>
+                </div>
+            `;
+        }
+        
+        function retryStream(cameraId) {
+            // Get camera name from cameras data
+            const camera = camerasData.find(c => c.id === cameraId);
+            const cameraName = camera ? camera.name : `Camera ${cameraId}`;
+            openVideoModal(cameraId, cameraName);
+        }
+        
+        function testStreamURL(cameraId) {
+            // Open stream URL in new tab for debugging
+            window.open(`/stream/${cameraId}`, '_blank');
+        }
+        
+        function updateFitToggleButton() {
+            const toggleBtn = document.getElementById('fitToggleBtn');
+            const streamImg = document.querySelector('[id^="streamImage_"]');
+            
+            if (streamImg && toggleBtn) {
+                const currentFit = streamImg.style.objectFit;
+                if (currentFit === 'cover') {
+                    toggleBtn.textContent = '📐 Fit Image';
+                    toggleBtn.title = 'Click to show full image (may have black bars)';
+                } else {
+                    toggleBtn.textContent = '📐 Fill Screen';
+                    toggleBtn.title = 'Click to fill entire screen (may crop image)';
+                }
+            }
+        }
+
+        function toggleVideoFit() {
+            const streamImg = document.querySelector('[id^="streamImage_"]');
+            const toggleBtn = document.getElementById('fitToggleBtn');
+            
+            if (streamImg) {
+                const currentFit = streamImg.style.objectFit;
+                if (currentFit === 'cover') {
+                    // Switch to contain (show full image with possible black bars)
+                    streamImg.style.objectFit = 'contain';
+                    streamImg.style.position = 'absolute';
+                    streamImg.style.top = '50%';
+                    streamImg.style.left = '50%';
+                    streamImg.style.transform = 'translate(-50%, -50%)';
+                    streamImg.style.width = 'auto';
+                    streamImg.style.height = 'auto';
+                    streamImg.style.maxWidth = '100%';
+                    streamImg.style.maxHeight = '100%';
+                    toggleBtn.textContent = '📐 Fill Screen';
+                    toggleBtn.title = 'Click to fill entire screen (may crop image)';
+                } else {
+                    // Switch to cover (fill entire area, may crop image)
+                    streamImg.style.objectFit = 'cover';
+                    streamImg.style.position = 'absolute';
+                    streamImg.style.top = '0';
+                    streamImg.style.left = '0';
+                    streamImg.style.transform = 'none';
+                    streamImg.style.width = '100%';
+                    streamImg.style.height = '100%';
+                    streamImg.style.maxWidth = 'none';
+                    streamImg.style.maxHeight = 'none';
+                    toggleBtn.textContent = '📐 Fit Image';
+                    toggleBtn.title = 'Click to show full image (may have black bars)';
+                }
+            }
+        }
+
+        function toggleFullscreen() {
+            const modal = document.getElementById('videoModal');
+            if (!document.fullscreenElement) {
+                modal.requestFullscreen().catch(err => {
+                    console.log('Error attempting to enable fullscreen:', err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function closeVideoModal() {
+            document.getElementById('videoModal').classList.remove('active');
+            
+            // Clean up stream image to stop video stream
+            const placeholder = document.getElementById('modalVideoPlaceholder');
+            placeholder.innerHTML = '<div style="color: white; font-size: 3rem; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">📹</div>';
+        }
+
+        function closeModal(event) {
+            if (event.target.id === 'videoModal') {
+                closeVideoModal();
+            }
+        }
+
+        // Reports
+        function generateReport(type) {
+            alert(`Generating ${type} report...\n\nThis will generate a comprehensive ${type} report with all analytics data.`);
+        }
+
+        // Export Functions
+        function exportCSV() {
+            let csv = 'Timestamp,Person ID,Camera Name,Status\n';
+            dummyData.forEach(row => {
+                csv += `${row.timestamp},${row.personId},${row.camera},${row.status}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'tracking_data.csv';
+            a.click();
+        }
+
+        function exportPDF() {
+            alert('PDF export functionality would be implemented here with a library like jsPDF');
+        }
+
+        // Camera Management Functions
+        function editCamera(cameraId) {
+            window.location.href = `/cameras/${cameraId}/edit`;
+        }
+
+        function deleteCamera(cameraId) {
+            if (confirm('Are you sure you want to delete this camera?')) {
+                fetch(`/cameras/${cameraId}/delete`, {
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        showNotification('Camera deleted successfully!', 'success');
+                        loadCameras();
+                        // Refresh surveillance grid after deletion
+                        refreshSurveillanceGrid();
+                    } else {
+                        throw new Error('Failed to delete camera');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Error deleting camera. Please try again.', 'error');
+                });
+            }
+        }
+
+        function searchCameraTable() {
+            const input = document.getElementById('cameraSearchInput').value.toLowerCase();
+            filteredCameras = cameras.filter(camera => 
+                camera.name.toLowerCase().includes(input) ||
+                camera.ip_address.toLowerCase().includes(input) ||
+                camera.camera_type.toLowerCase().includes(input)
+            );
+            currentCameraPage = 1;
+            updateCameraTable();
+        }
+
+        function exportCameraCSV() {
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + "S.No,Camera Name,IP Address,Port,Type,RTSP URL\n"
+                + cameras.map((camera, index) => 
+                    `${index + 1},"${camera.name}","${camera.ip_address}","${camera.port}","${camera.camera_type}","${camera.rtsp_url}"`
+                ).join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "cameras.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Export Functions
+        function exportCSV() {
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + "Timestamp,Person ID,Camera Name,Status\n"
+                + dummyData.map(row => 
+                    `"${row.timestamp}","${row.personId}","${row.camera}","${row.status}"`
+                ).join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "tracking_data.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showNotification('Data exported successfully!', 'success');
+        }
+
+        function exportPDF() {
+            showNotification('PDF export functionality coming soon!', 'info');
+        }
+
+        // Reports Functions
+        function generateReport(type) {
+            showNotification(`Generating ${type} report...`, 'info');
+            // In a real application, this would call the backend
+            setTimeout(() => {
+                showNotification(`${type} report generated successfully!`, 'success');
+            }, 2000);
+        }
+
+        // Settings Functions
+        function saveSettings() {
+            showNotification('Settings saved successfully!', 'success');
+        }
+
+        function saveNotifications() {
+            showNotification('Notification preferences saved successfully!', 'success');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load cameras from backend
+            loadCameras();
+            
+            // Initialize surveillance
+            updateSurveillance();
+            
+            // Start auto-refresh for surveillance grid (every 30 seconds)
+            startSurveillanceAutoRefresh(30);
+            
+            // Load real-time counts
+            loadRealTimeCounts();
+            
+            // Update counts every 5 seconds
+            setInterval(loadRealTimeCounts, 5000);
+        });
+
+        // Load real-time counts from backend
+        function loadRealTimeCounts() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.current_counts) {
+                        document.getElementById('totalInToday').textContent = data.current_counts.IN || 0;
+                        document.getElementById('totalOutToday').textContent = data.current_counts.OUT || 0;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading real-time counts:', error);
+                });
+        }
+
+        // Refresh surveillance grid dynamically
+        function refreshSurveillanceGrid() {
+            fetch('/api/cameras')
+                .then(response => response.json())
+                .then(cameras => {
+                    const surveillanceGrid = document.getElementById('surveillanceGrid');
+                    
+                    // Clear existing content
+                    surveillanceGrid.innerHTML = '';
+                    
+                    if (cameras && cameras.length > 0) {
+                        // Add camera tiles
+                        cameras.forEach(camera => {
+                            const videoTile = document.createElement('div');
+                            videoTile.className = 'video-tile';
+                            videoTile.setAttribute('data-camera-id', camera.id);
+                            videoTile.setAttribute('data-camera-name', camera.name);
+                            videoTile.setAttribute('onclick', 'openVideoModalSafe(this)');
+                            
+                            videoTile.innerHTML = `
+                                <div class="video-wrapper">
+                                    <iframe 
+                                        src="/stream/${camera.id}" 
+                                        frameborder="0" 
+                                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000;"
+                                        allowfullscreen>
+                                    </iframe>
+                                    <div class="video-overlay">${camera.name} - ${camera.camera_type}</div>
+                                </div>
+                                <div style="font-weight: 600; margin-top: 10px;">${camera.name} - ${camera.description || camera.camera_type}</div>
+                            `;
+                            
+                            surveillanceGrid.appendChild(videoTile);
+                        });
+                        
+                        // Fill remaining slots with placeholders (up to 4 total)
+                        const remainingSlots = Math.max(0, 4 - cameras.length);
+                        for (let i = 0; i < remainingSlots; i++) {
+                            const placeholderTile = document.createElement('div');
+                            placeholderTile.className = 'video-tile';
+                            
+                            placeholderTile.innerHTML = `
+                                <div class="video-wrapper">
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #333; display: flex; align-items: center; justify-content: center; color: #666;">
+                                        <div style="text-align: center;">
+                                            <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                                            <div>No Camera Configured</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="font-weight: 600; margin-top: 10px; color: #666;">Camera Slot ${cameras.length + i + 1}</div>
+                            `;
+                            
+                            surveillanceGrid.appendChild(placeholderTile);
+                        }
+                    } else {
+                        // No cameras - show 4 placeholder tiles
+                        for (let i = 0; i < 4; i++) {
+                            const placeholderTile = document.createElement('div');
+                            placeholderTile.className = 'video-tile';
+                            
+                            placeholderTile.innerHTML = `
+                                <div class="video-wrapper">
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #333; display: flex; align-items: center; justify-content: center; color: #666;">
+                                        <div style="text-align: center;">
+                                            <i class="fas fa-camera" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                                            <div>No Camera Configured</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="font-weight: 600; margin-top: 10px; color: #666;">Camera Slot ${i + 1}</div>
+                            `;
+                            
+                            surveillanceGrid.appendChild(placeholderTile);
+                        }
+                    }
+                    
+                    // Update global camerasData for modal functionality
+                    if (typeof camerasData !== 'undefined') {
+                        camerasData = cameras;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error refreshing surveillance grid:', error);
+                    showNotification('Error refreshing camera feeds', 'error');
+                });
+        }
+
+        // Auto-refresh surveillance grid periodically
+        let surveillanceRefreshInterval;
+        
+        function startSurveillanceAutoRefresh(intervalSeconds = 30) {
+            // Clear any existing interval
+            if (surveillanceRefreshInterval) {
+                clearInterval(surveillanceRefreshInterval);
+            }
+            
+            // Set up new interval
+            surveillanceRefreshInterval = setInterval(() => {
+                refreshSurveillanceGrid();
+            }, intervalSeconds * 1000);
+            
+            console.log(`Surveillance auto-refresh started (every ${intervalSeconds} seconds)`);
+        }
+        
+        function stopSurveillanceAutoRefresh() {
+            if (surveillanceRefreshInterval) {
+                clearInterval(surveillanceRefreshInterval);
+                surveillanceRefreshInterval = null;
+                console.log('Surveillance auto-refresh stopped');
+            }
+        }
+    </script>
+</body>
+</html>
