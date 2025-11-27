@@ -17,14 +17,21 @@ import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass
 import queue
+from functools import wraps
 
 import cv2
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template, request, redirect, url_for, session, flash, Response
+import os
 
-# Import user ReID module
+# Import user ReID module and database
 from person_reid import PersonReIDManager
+from database import (
+    verify_user, get_active_cameras, get_camera_by_id, 
+    create_camera, update_camera, delete_camera, build_rtsp_url,
+    log_tracking_event, get_tracking_stats
+)
 
 # ------------------ CONFIG ------------------
 MODEL_PATH = "yolov8n.pt"
@@ -34,8 +41,9 @@ CONF_THRESHOLD = 0.25  # Lowered for better detection
 IOU_THRESHOLD = 0.45
 MAX_COSINE_DISTANCE = 0.2
 
-CAMERA_OUT_RTSP = "rtsp://admin:14562%40@192.168.1.5:554/stream1"
-CAMERA_IN_RTSP  = "rtsp://admin:14562%40@192.168.1.12:554/stream1"
+# Dynamic RTSP URLs - will be loaded from database
+CAMERA_OUT_RTSP = None
+CAMERA_IN_RTSP = None
 
 
 DRAW = True
@@ -301,7 +309,7 @@ class StreamProcessor(threading.Thread):
                                         "first_seen": None if is_known_person else time.time(),
                                         "processed": True
                                     }
-                                    status = "🔴 KNOWN" if is_known_person else "🟢 NEW"
+                                    status = " KNOWN" if is_known_person else " NEW"
                                     logger.info(f"[{self.name}] ReID: track {tid} -> {status} {person_id} (sim={reid_similarity:.3f})")
                             except Exception as e:
                                 logger.error(f"[{self.name}] ReID error for track {tid}: {e}")
@@ -394,7 +402,187 @@ class StreamProcessor(threading.Thread):
 
 # ------------------ FLASK ------------------
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-change-this-in-production'  # Change this in production
+
+# Flask session configuration
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_KEY_PREFIX'] = 'tracking_session:'
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
 reid_manager = None
+
+# Authentication decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Load dynamic RTSP URLs from database
+def load_camera_rtsp_urls():
+    global CAMERA_OUT_RTSP, CAMERA_IN_RTSP
+    cameras = get_active_cameras()
+    
+    CAMERA_OUT_RTSP = None
+    CAMERA_IN_RTSP = None
+    
+    for camera in cameras:
+        rtsp_url = build_rtsp_url(camera)
+        if camera['camera_type'] == 'OUT':
+            CAMERA_OUT_RTSP = rtsp_url
+        elif camera['camera_type'] == 'IN':
+            CAMERA_IN_RTSP = rtsp_url
+    
+    logger.info(f"Loaded RTSP URLs - OUT: {CAMERA_OUT_RTSP}, IN: {CAMERA_IN_RTSP}")
+    return CAMERA_OUT_RTSP, CAMERA_IN_RTSP
+
+# Authentication Routes
+@app.route('/')
+def index():
+    logger.info(f"Index route accessed. Session contents: {dict(session)}")
+    if 'user_id' in session:
+        logger.info(f"User {session.get('username')} already logged in, redirecting to dashboard")
+        return redirect(url_for('dashboard'))
+    logger.info("No user session found, redirecting to login")
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        user = verify_user(username, password)
+        if user:
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            flash('Login successful!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('You have been logged out', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    logger.info(f"Dashboard accessed by user: {session.get('username')}")
+    
+    # Get tracking statistics
+    try:
+        stats = get_tracking_stats(24)  # Last 24 hours
+    except Exception as e:
+        logger.error(f"Error getting tracking stats: {e}")
+        stats = {'total_detections': 0, 'total_in': 0, 'total_out': 0}
+    
+    # Get active cameras for surveillance section
+    try:
+        cameras = get_active_cameras()
+    except Exception as e:
+        logger.error(f"Error getting cameras: {e}")
+        cameras = []
+    
+    return render_template('dashboard.html', 
+                         username=session.get('username'),
+                         stats=stats,
+                         cameras=cameras,
+                         counts=counts)
+
+@app.route('/cameras')
+@login_required
+def cameras():
+    cameras_list = get_active_cameras()
+    return render_template('cameras.html', cameras=cameras_list)
+
+@app.route('/cameras/add', methods=['GET', 'POST'])
+@login_required
+def add_camera():
+    if request.method == 'POST':
+        camera_data = {
+            'name': request.form['name'],
+            'description': request.form.get('description', ''),
+            'ip_address': request.form['ip_address'],
+            'port': int(request.form['port']),
+            'username': request.form['username'],
+            'password': request.form['password'],
+            'stream_path': request.form.get('stream_path', '/stream1'),
+            'camera_type': request.form['camera_type'],
+            'is_active': 1
+        }
+        
+        try:
+            camera_id = create_camera(camera_data)
+            flash(f'Camera "{camera_data["name"]}" added successfully!', 'success')
+            
+            # Reload RTSP URLs
+            load_camera_rtsp_urls()
+            
+            return redirect(url_for('cameras'))
+        except Exception as e:
+            flash(f'Error adding camera: {str(e)}', 'error')
+    
+    return render_template('cameras.html', show_add_form=True)
+
+@app.route('/cameras/<int:camera_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_camera(camera_id):
+    camera = get_camera_by_id(camera_id)
+    if not camera:
+        flash('Camera not found', 'error')
+        return redirect(url_for('cameras'))
+    
+    if request.method == 'POST':
+        camera_data = {
+            'name': request.form['name'],
+            'description': request.form.get('description', ''),
+            'ip_address': request.form['ip_address'],
+            'port': int(request.form['port']),
+            'username': request.form['username'],
+            'password': request.form['password'],
+            'stream_path': request.form.get('stream_path', '/stream1'),
+            'camera_type': request.form['camera_type'],
+            'is_active': int(request.form.get('is_active', 1))
+        }
+        
+        try:
+            update_camera(camera_id, camera_data)
+            flash(f'Camera "{camera_data["name"]}" updated successfully!', 'success')
+            
+            # Reload RTSP URLs
+            load_camera_rtsp_urls()
+            
+            return redirect(url_for('cameras'))
+        except Exception as e:
+            flash(f'Error updating camera: {str(e)}', 'error')
+    
+    return render_template('cameras.html', camera=camera, show_edit_form=True)
+
+@app.route('/cameras/<int:camera_id>/delete', methods=['POST'])
+@login_required
+def delete_camera_route(camera_id):
+    try:
+        delete_camera(camera_id)
+        flash('Camera deleted successfully!', 'success')
+        
+        # Reload RTSP URLs
+        load_camera_rtsp_urls()
+        
+    except Exception as e:
+        flash(f'Error deleting camera: {str(e)}', 'error')
+    
+    return redirect(url_for('cameras'))
 
 @app.route("/counts")
 def get_counts():
@@ -472,43 +660,279 @@ def health():
             reid_health.update({"error": str(e)})
     return jsonify({"service":"ok","cameras":result,"reid":reid_health})
 
+# Camera health check endpoint
+@app.route('/camera/<int:camera_id>/health')
+@login_required
+def camera_health(camera_id):
+    """Check if a specific camera is reachable"""
+    camera = get_camera_by_id(camera_id)
+    if not camera:
+        return jsonify({"error": "Camera not found"}), 404
+    
+    rtsp_url = build_rtsp_url(camera)
+    
+    try:
+        # Try to open the RTSP stream
+        cap = cv2.VideoCapture(rtsp_url)
+        if cap.isOpened():
+            # Try to read one frame
+            ret, frame = cap.read()
+            cap.release()
+            
+            if ret and frame is not None:
+                return jsonify({
+                    "camera_id": camera_id,
+                    "name": camera['name'], 
+                    "status": "healthy",
+                    "rtsp_url": rtsp_url,
+                    "frame_size": f"{frame.shape[1]}x{frame.shape[0]}"
+                })
+            else:
+                return jsonify({
+                    "camera_id": camera_id,
+                    "name": camera['name'],
+                    "status": "connected_no_frame", 
+                    "rtsp_url": rtsp_url,
+                    "error": "Stream opened but no frame received"
+                }), 503
+        else:
+            return jsonify({
+                "camera_id": camera_id,
+                "name": camera['name'],
+                "status": "connection_failed",
+                "rtsp_url": rtsp_url, 
+                "error": "Could not open RTSP stream"
+            }), 503
+            
+    except Exception as e:
+        return jsonify({
+            "camera_id": camera_id,
+            "name": camera['name'],
+            "status": "error",
+            "rtsp_url": rtsp_url,
+            "error": str(e)
+        }), 500
+
+# Streaming endpoints for camera feeds
+@app.route('/stream/<int:camera_id>')
+@login_required
+def video_stream(camera_id):
+    """Stream video feed with model inference output for specific camera"""
+    def generate_frames():
+        camera = get_camera_by_id(camera_id)
+        if not camera:
+            logger.error(f"Camera {camera_id} not found")
+            return
+        
+        logger.info(f"Stream request for camera {camera_id}: {camera['name']}")
+        
+        # Build RTSP URL for direct streaming
+        rtsp_url = build_rtsp_url(camera)
+        camera_type = camera['camera_type']
+        
+        logger.info(f"Starting stream for camera {camera_id}: {camera['name']} ({rtsp_url})")
+        
+        # Try to get processed frame first (if AI is running)
+        with display_lock:
+            if camera_type == 'IN':
+                ai_frame = display_frames.get("IN")
+            elif camera_type == 'OUT':
+                ai_frame = display_frames.get("OUT")
+            else:
+                ai_frame = None
+        
+        # If AI processing is available, use processed frames
+        if ai_frame is not None:
+            logger.info(f"Using AI-processed frames for camera {camera_id}")
+            while True:
+                with display_lock:
+                    if camera_type == 'IN':
+                        frame = display_frames.get("IN")
+                    elif camera_type == 'OUT':
+                        frame = display_frames.get("OUT")
+                    else:
+                        frame = None
+                
+                if frame is not None:
+                    ret, buffer = cv2.imencode('.jpg', frame)
+                    if ret:
+                        frame_bytes = buffer.tobytes()
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                
+                time.sleep(0.1)
+        else:
+            # Fallback: Direct RTSP streaming (web-only mode)
+            logger.info(f"Using direct RTSP streaming for camera {camera_id} (web-only mode)")
+            cap = None
+            try:
+                cap = cv2.VideoCapture(rtsp_url)
+                if not cap.isOpened():
+                    logger.error(f"Failed to open RTSP stream: {rtsp_url}")
+                    return
+                
+                # Set buffer size to reduce latency
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                
+                frame_count = 0
+                while True:
+                    ret, frame = cap.read()
+                    if not ret or frame is None:
+                        logger.warning(f"Failed to read frame from camera {camera_id}")
+                        time.sleep(1)
+                        continue
+                    
+                    frame_count += 1
+                    
+                    # Resize frame for better performance
+                    height, width = frame.shape[:2]
+                    if width > 640:
+                        scale = 640 / width
+                        new_width = int(width * scale)
+                        new_height = int(height * scale)
+                        frame = cv2.resize(frame, (new_width, new_height))
+                    
+                    # Add overlay information
+                    cv2.putText(frame, f"Camera: {camera['name']}", (10, 30), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                    cv2.putText(frame, f"Type: {camera_type}", (10, 60), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                    cv2.putText(frame, f"Status: Live Feed", (10, 90), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    cv2.putText(frame, f"Frame: {frame_count}", (10, frame.shape[0] - 10), 
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                    
+                    # Encode frame as JPEG
+                    ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    if ret:
+                        frame_bytes = buffer.tobytes()
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                    
+                    time.sleep(0.05)  # ~20 FPS
+                    
+            except Exception as e:
+                logger.error(f"Error streaming camera {camera_id}: {e}")
+            finally:
+                if cap:
+                    cap.release()
+                    logger.info(f"Released camera {camera_id} capture")
+    
+    return Response(generate_frames(),
+                   mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/api/cameras')
+@login_required
+def api_cameras():
+    """API endpoint to get cameras data"""
+    cameras = get_active_cameras()
+    # Add RTSP URL to each camera
+    for camera in cameras:
+        camera['rtsp_url'] = build_rtsp_url(camera)
+    return jsonify(cameras)
+
+@app.route('/api/stats')
+@login_required
+def api_stats():
+    """API endpoint to get real-time statistics"""
+    tracking_stats = get_tracking_stats(24)
+    with counts_lock:
+        current_counts = counts.copy()
+    
+    return jsonify({
+        'current_counts': current_counts,
+        'tracking_stats': tracking_stats,
+        'timestamp': time.time()
+    })
 
 # ------------------ MAIN ------------------
 def main():
     global reid_manager
     logger.info("[INFO] Loading YOLO model")
     try:
+        # Set environment variable to avoid weights_only warning
+        import os
+        os.environ['PYTORCH_DISABLE_WEIGHTS_ONLY_LOAD_WARNING'] = '1'
+        
+        # Import torch and set safe loading approach
+        import torch
+        
+        # Temporary solution: monkey-patch torch.load to use weights_only=False
+        original_torch_load = torch.load
+        def patched_load(*args, **kwargs):
+            kwargs['weights_only'] = False
+            return original_torch_load(*args, **kwargs)
+        torch.load = patched_load
+        
+        # Load YOLO model
         model = YOLO(MODEL_PATH)
-        try: model.to(DEVICE); logger.info(f"[INFO] Model moved to device: {DEVICE}")
-        except Exception: logger.warning("Could not move model to device")
+        
+        # Restore original torch.load
+        torch.load = original_torch_load
+        logger.info("[INFO] YOLO model loaded successfully")
+        
+        try: 
+            model.to(DEVICE) 
+            logger.info(f"[INFO] Model moved to device: {DEVICE}")
+        except Exception: 
+            logger.warning("Could not move model to device, using CPU")
+            DEVICE = "cpu"
+            model.to(DEVICE)
     except Exception as e:
         logger.error(f"Model load error: {e}")
-        model = YOLO("yolov8n.pt")
-
-    # ReID manager
-    if REID_CONFIG["enable_reid"]:
         try:
-            reid_manager = PersonReIDManager(
-                embedding_dim=REID_CONFIG["embedding_dim"],
-                similarity_threshold=REID_CONFIG["similarity_threshold"],
-                ttl_seconds=REID_CONFIG["ttl_seconds"],
-            )
-            logger.info("[INFO] ReID manager initialized")
-        except Exception as e:
-            logger.error(f"Failed to init ReID manager: {e}")
-            reid_manager = None
-            REID_CONFIG["enable_reid"]=False
+            # Fallback - create web-only mode without AI
+            logger.warning("[WARNING] YOLO model failed to load. Starting in web-only mode.")
+            logger.warning("AI tracking will be disabled, but camera management will work.")
+            model = None
+        except Exception as e2:
+            logger.error(f"Fallback also failed: {e2}")
+            return
 
-    cam_out = StreamProcessor("camera_out", CAMERA_OUT_RTSP, "OUT", model, DEVICE, "UP")
-    cam_in = StreamProcessor("camera_in", CAMERA_IN_RTSP, "IN", model, DEVICE, "DOWN")
+    # Load dynamic RTSP URLs from database
+    logger.info("[INFO] Loading camera configurations from database...")
+    load_camera_rtsp_urls()
+    
+    # Check if we have required RTSP URLs
+    if not CAMERA_OUT_RTSP or not CAMERA_IN_RTSP:
+        logger.error("[ERROR] Missing camera configurations in database!")
+        logger.error("Please add cameras through the web interface first.")
+        logger.error("Run the web application and go to Camera Management to add cameras.")
+        
+        # Start Flask in web-only mode for camera configuration
+        logger.info("[INFO] Starting Flask in configuration-only mode...")
+        app.run(host='0.0.0.0', port=5003, debug=False)
+        return
 
-    if reid_manager:
-        cam_out.reid_manager = reid_manager
-        cam_in.reid_manager = reid_manager
+    # Only start AI components if model loaded successfully
+    if model is not None:
+        # ReID manager
+        if REID_CONFIG["enable_reid"]:
+            try:
+                reid_manager = PersonReIDManager(
+                    embedding_dim=REID_CONFIG["embedding_dim"],
+                    similarity_threshold=REID_CONFIG["similarity_threshold"],
+                    ttl_seconds=REID_CONFIG["ttl_seconds"],
+                )
+                logger.info("[INFO] ReID manager initialized")
+            except Exception as e:
+                logger.error(f"Failed to init ReID manager: {e}")
+                reid_manager = None
+                REID_CONFIG["enable_reid"]=False
 
-    cam_out.start()
-    cam_in.start()
+        cam_out = StreamProcessor("camera_out", CAMERA_OUT_RTSP, "OUT", model, DEVICE, "UP")
+        cam_in = StreamProcessor("camera_in", CAMERA_IN_RTSP, "IN", model, DEVICE, "DOWN")
 
+        if reid_manager:
+            cam_out.reid_manager = reid_manager
+            cam_in.reid_manager = reid_manager
+
+        cam_out.start()
+        cam_in.start()
+        
+        logger.info("[INFO] AI tracking components started")
+
+    # Start Flask web server
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5003, debug=False, use_reloader=False), daemon=True).start()
     logger.info("[INFO] Flask started on port 5003")
 
