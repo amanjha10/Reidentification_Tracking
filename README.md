@@ -41,15 +41,15 @@ python app.py
 ### ⚙️ Key Configuration
 ```python
 # Performance tuning
-DETECTION_SKIP_FRAMES = 2    # Skip frames for performance
-DRAW_EVERY_N_FRAMES = 2      # Drawing frequency
-INPUT_MAX_WIDTH = 640        # Input resolution limit
+DETECTION_SKIP_FRAMES = 2    
+DRAW_EVERY_N_FRAMES = 2      # Drawing frequenc
+INPUT_MAX_WIDTH = 640        
 
 # ReID settings  
 REID_CONFIG = {
-    "similarity_threshold": 0.96,  # 96% match required
-    "ttl_seconds": 300,           # 5 min person memory
-    "enable_reid": True,          # Enable ReID system
+    "similarity_threshold": 0.96,  
+    "ttl_seconds": 300,           
+    "enable_reid": True,          
 }
 ```
 
