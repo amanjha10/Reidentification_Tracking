@@ -70,6 +70,33 @@ def init_database():
             )
         """)
         
+        # Create report_summaries table for efficient reporting
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS report_summaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_date DATE NOT NULL,
+                report_type TEXT NOT NULL CHECK(report_type IN ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')),
+                total_users INTEGER DEFAULT 0,
+                total_in INTEGER DEFAULT 0,
+                total_out INTEGER DEFAULT 0,
+                cameras_used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(report_date, report_type)
+            )
+        """)
+        
+        # Create generated_reports table to track Excel exports
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS generated_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_type TEXT NOT NULL,
+                report_period TEXT NOT NULL,
+                file_path TEXT,
+                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                generated_by TEXT
+            )
+        """)
+        
         # Create system_settings table
         conn.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
@@ -264,6 +291,274 @@ def get_tracking_stats(hours=24):
         
         return {stat['direction']: {'count': stat['count'], 'avg_confidence': stat['avg_confidence']} 
                 for stat in stats}
+
+# ------------------ REPORTING FUNCTIONS ------------------
+
+def populate_dummy_data():
+    """Populate the system with dummy tracking data for testing"""
+    import random
+    from datetime import datetime, timedelta
+    
+    with get_db_connection() as conn:
+        # Check if dummy data already exists
+        existing_count = conn.execute("SELECT COUNT(*) FROM tracking_logs").fetchone()[0]
+        if existing_count > 100:
+            print("✅ Dummy data already exists, skipping population")
+            return
+            
+        cameras = conn.execute("SELECT id FROM cameras WHERE is_active = 1").fetchall()
+        if not cameras:
+            print("❌ No active cameras found. Please add cameras first.")
+            return
+            
+        camera_ids = [camera['id'] for camera in cameras]
+        
+        # Generate dummy data for the past 365 days
+        start_date = datetime.now() - timedelta(days=365)
+        
+        print("🔄 Populating dummy tracking data...")
+        
+        for day_offset in range(365):
+            current_date = start_date + timedelta(days=day_offset)
+            
+            # Generate random number of events per day (50-200)
+            daily_events = random.randint(50, 200)
+            
+            for _ in range(daily_events):
+                # Random timestamp during the day
+                hour = random.randint(6, 22)  # Active hours 6 AM to 10 PM
+                minute = random.randint(0, 59)
+                second = random.randint(0, 59)
+                
+                event_time = current_date.replace(hour=hour, minute=minute, second=second)
+                
+                # Random data
+                camera_id = random.choice(camera_ids)
+                direction = random.choice(['IN', 'OUT'])
+                confidence = random.uniform(0.7, 0.95)
+                person_reid_id = f"person_{random.randint(1, 1000)}"
+                
+                conn.execute("""
+                    INSERT INTO tracking_logs (camera_id, direction, person_reid_id, timestamp, confidence)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (camera_id, direction, person_reid_id, event_time, confidence))
+        
+        conn.commit()
+        print(f"✅ Generated {365 * 125} dummy tracking events (average 125/day)")
+
+
+def get_daily_report(date_str):
+    """Get daily report data for specific date"""
+    with get_db_connection() as conn:
+        # Get tracking data for the specific day
+        data = conn.execute("""
+            SELECT 
+                DATE(timestamp) as date,
+                COUNT(*) as total_users,
+                SUM(CASE WHEN direction = 'IN' THEN 1 ELSE 0 END) as total_in,
+                SUM(CASE WHEN direction = 'OUT' THEN 1 ELSE 0 END) as total_out,
+                COUNT(DISTINCT camera_id) as cameras_used
+            FROM tracking_logs 
+            WHERE DATE(timestamp) = ?
+            GROUP BY DATE(timestamp)
+        """, (date_str,)).fetchone()
+        
+        if data:
+            return dict(data)
+        else:
+            return {
+                'date': date_str,
+                'total_users': 0,
+                'total_in': 0,
+                'total_out': 0,
+                'cameras_used': 0
+            }
+
+
+def get_monthly_report(year, month):
+    """Get monthly report data"""
+    with get_db_connection() as conn:
+        # Get daily breakdown for the month
+        daily_data = conn.execute("""
+            SELECT 
+                DATE(timestamp) as date,
+                COUNT(*) as total_users,
+                SUM(CASE WHEN direction = 'IN' THEN 1 ELSE 0 END) as total_in,
+                SUM(CASE WHEN direction = 'OUT' THEN 1 ELSE 0 END) as total_out,
+                COUNT(DISTINCT camera_id) as cameras_used
+            FROM tracking_logs 
+            WHERE strftime('%Y', timestamp) = ? AND strftime('%m', timestamp) = ?
+            GROUP BY DATE(timestamp)
+            ORDER BY DATE(timestamp)
+        """, (str(year), str(month).zfill(2))).fetchall()
+        
+        # Calculate monthly summary
+        if daily_data:
+            total_users = sum(row['total_users'] for row in daily_data)
+            total_in = sum(row['total_in'] for row in daily_data)
+            total_out = sum(row['total_out'] for row in daily_data)
+            cameras_used = len(set(conn.execute("""
+                SELECT DISTINCT camera_id FROM tracking_logs 
+                WHERE strftime('%Y', timestamp) = ? AND strftime('%m', timestamp) = ?
+            """, (str(year), str(month).zfill(2))).fetchall()))
+            
+            return {
+                'period': f"{year}-{str(month).zfill(2)}",
+                'daily_data': [dict(row) for row in daily_data],
+                'summary': {
+                    'total_users': total_users,
+                    'total_in': total_in,
+                    'total_out': total_out,
+                    'cameras_used': cameras_used
+                }
+            }
+        else:
+            return {
+                'period': f"{year}-{str(month).zfill(2)}",
+                'daily_data': [],
+                'summary': {
+                    'total_users': 0,
+                    'total_in': 0,
+                    'total_out': 0,
+                    'cameras_used': 0
+                }
+            }
+
+
+def get_quarterly_report(year, quarter):
+    """Get quarterly report data"""
+    # Determine months for the quarter
+    quarter_months = {
+        1: [1, 2, 3],
+        2: [4, 5, 6], 
+        3: [7, 8, 9],
+        4: [10, 11, 12]
+    }
+    
+    months = quarter_months.get(quarter, [1, 2, 3])
+    
+    with get_db_connection() as conn:
+        # Get monthly breakdown for the quarter
+        monthly_data = []
+        total_users = total_in = total_out = 0
+        all_cameras = set()
+        
+        for month in months:
+            month_data = conn.execute("""
+                SELECT 
+                    strftime('%Y-%m', timestamp) as month,
+                    COUNT(*) as total_users,
+                    SUM(CASE WHEN direction = 'IN' THEN 1 ELSE 0 END) as total_in,
+                    SUM(CASE WHEN direction = 'OUT' THEN 1 ELSE 0 END) as total_out,
+                    COUNT(DISTINCT camera_id) as cameras_used
+                FROM tracking_logs 
+                WHERE strftime('%Y', timestamp) = ? AND strftime('%m', timestamp) = ?
+                GROUP BY strftime('%Y-%m', timestamp)
+            """, (str(year), str(month).zfill(2))).fetchone()
+            
+            if month_data:
+                monthly_data.append(dict(month_data))
+                total_users += month_data['total_users']
+                total_in += month_data['total_in']
+                total_out += month_data['total_out']
+                
+                # Get unique cameras for this month
+                month_cameras = conn.execute("""
+                    SELECT DISTINCT camera_id FROM tracking_logs 
+                    WHERE strftime('%Y', timestamp) = ? AND strftime('%m', timestamp) = ?
+                """, (str(year), str(month).zfill(2))).fetchall()
+                all_cameras.update(row['camera_id'] for row in month_cameras)
+            else:
+                monthly_data.append({
+                    'month': f"{year}-{str(month).zfill(2)}",
+                    'total_users': 0,
+                    'total_in': 0,
+                    'total_out': 0,
+                    'cameras_used': 0
+                })
+        
+        return {
+            'period': f"Q{quarter} {year}",
+            'monthly_data': monthly_data,
+            'summary': {
+                'total_users': total_users,
+                'total_in': total_in,
+                'total_out': total_out,
+                'cameras_used': len(all_cameras)
+            }
+        }
+
+
+def get_yearly_report(year):
+    """Get yearly report data"""
+    with get_db_connection() as conn:
+        # Get monthly breakdown for the year
+        monthly_data = conn.execute("""
+            SELECT 
+                strftime('%Y-%m', timestamp) as month,
+                COUNT(*) as total_users,
+                SUM(CASE WHEN direction = 'IN' THEN 1 ELSE 0 END) as total_in,
+                SUM(CASE WHEN direction = 'OUT' THEN 1 ELSE 0 END) as total_out,
+                COUNT(DISTINCT camera_id) as cameras_used
+            FROM tracking_logs 
+            WHERE strftime('%Y', timestamp) = ?
+            GROUP BY strftime('%Y-%m', timestamp)
+            ORDER BY strftime('%Y-%m', timestamp)
+        """, (str(year),)).fetchall()
+        
+        # Calculate yearly summary
+        if monthly_data:
+            total_users = sum(row['total_users'] for row in monthly_data)
+            total_in = sum(row['total_in'] for row in monthly_data)
+            total_out = sum(row['total_out'] for row in monthly_data)
+            cameras_used = len(set(conn.execute("""
+                SELECT DISTINCT camera_id FROM tracking_logs 
+                WHERE strftime('%Y', timestamp) = ?
+            """, (str(year),)).fetchall()))
+            
+            return {
+                'period': str(year),
+                'monthly_data': [dict(row) for row in monthly_data],
+                'summary': {
+                    'total_users': total_users,
+                    'total_in': total_in,
+                    'total_out': total_out,
+                    'cameras_used': cameras_used
+                }
+            }
+        else:
+            return {
+                'period': str(year),
+                'monthly_data': [],
+                'summary': {
+                    'total_users': 0,
+                    'total_in': 0,
+                    'total_out': 0,
+                    'cameras_used': 0
+                }
+            }
+
+
+def log_generated_report(report_type, report_period, file_path, generated_by):
+    """Log a generated report"""
+    with get_db_connection() as conn:
+        conn.execute("""
+            INSERT INTO generated_reports (report_type, report_period, file_path, generated_by)
+            VALUES (?, ?, ?, ?)
+        """, (report_type, report_period, file_path, generated_by))
+        conn.commit()
+
+
+def get_report_history():
+    """Get history of generated reports"""
+    with get_db_connection() as conn:
+        reports = conn.execute("""
+            SELECT * FROM generated_reports 
+            ORDER BY generated_at DESC 
+            LIMIT 20
+        """).fetchall()
+        
+        return [dict(report) for report in reports]
 
 if __name__ == '__main__':
     setup_database()
