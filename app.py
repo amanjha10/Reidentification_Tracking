@@ -33,6 +33,18 @@ from database import (
     log_tracking_event, get_tracking_stats
 )
 
+# Import additional modules for reporting
+from datetime import datetime, timedelta
+from flask import send_file
+import json
+
+# Import reporting functions
+from database import (
+    populate_dummy_data, get_daily_report, get_monthly_report, 
+    get_quarterly_report, get_yearly_report, log_generated_report, get_report_history
+)
+from excel_export import ExcelReportGenerator
+
 # ------------------ CONFIG ------------------
 MODEL_PATH = "yolov8n.pt"
 DEVICE = "mps" if cv2.cuda.getCudaEnabledDeviceCount() == 0 and hasattr(cv2, 'ocl') else "cpu"
@@ -844,6 +856,198 @@ def api_stats():
         'tracking_stats': tracking_stats,
         'timestamp': time.time()
     })
+
+# ------------------ REPORTING APIs ------------------
+
+@app.route('/api/populate-dummy-data', methods=['POST'])
+@login_required
+def api_populate_dummy_data():
+    """Populate system with dummy data for testing"""
+    try:
+        populate_dummy_data()
+        return jsonify({
+            'status': 'success',
+            'message': 'Dummy data populated successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error populating dummy data: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/reports/daily/<date_str>')
+@login_required
+def api_daily_report(date_str):
+    """Get daily report data"""
+    try:
+        data = get_daily_report(date_str)
+        return jsonify({
+            'status': 'success',
+            'data': data
+        })
+    except Exception as e:
+        logger.error(f"Error getting daily report: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/reports/monthly/<int:year>/<int:month>')
+@login_required
+def api_monthly_report(year, month):
+    """Get monthly report data"""
+    try:
+        data = get_monthly_report(year, month)
+        return jsonify({
+            'status': 'success',
+            'data': data
+        })
+    except Exception as e:
+        logger.error(f"Error getting monthly report: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/reports/quarterly/<int:year>/<int:quarter>')
+@login_required
+def api_quarterly_report(year, quarter):
+    """Get quarterly report data"""
+    try:
+        data = get_quarterly_report(year, quarter)
+        return jsonify({
+            'status': 'success',
+            'data': data
+        })
+    except Exception as e:
+        logger.error(f"Error getting quarterly report: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/reports/yearly/<int:year>')
+@login_required
+def api_yearly_report(year):
+    """Get yearly report data"""
+    try:
+        data = get_yearly_report(year)
+        return jsonify({
+            'status': 'success',
+            'data': data
+        })
+    except Exception as e:
+        logger.error(f"Error getting yearly report: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/reports/history')
+@login_required
+def api_report_history():
+    """Get report generation history"""
+    try:
+        history = get_report_history()
+        return jsonify({
+            'status': 'success',
+            'data': history
+        })
+    except Exception as e:
+        logger.error(f"Error getting report history: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+# Excel Export Endpoints
+@app.route('/api/export/daily/<date_str>')
+@login_required
+def export_daily_excel(date_str):
+    """Export daily report as Excel"""
+    try:
+        data = get_daily_report(date_str)
+        generator = ExcelReportGenerator()
+        filepath = generator.generate_daily_report(data, date_str)
+        
+        # Log the generated report
+        log_generated_report('daily', date_str, filepath, session.get('username'))
+        
+        return send_file(filepath, as_attachment=True, 
+                        download_name=f"daily_report_{date_str}.xlsx")
+    except Exception as e:
+        logger.error(f"Error exporting daily report: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/export/monthly/<int:year>/<int:month>')
+@login_required
+def export_monthly_excel(year, month):
+    """Export monthly report as Excel"""
+    try:
+        data = get_monthly_report(year, month)
+        generator = ExcelReportGenerator()
+        filepath = generator.generate_monthly_report(data)
+        
+        # Log the generated report
+        period = f"{year}-{str(month).zfill(2)}"
+        log_generated_report('monthly', period, filepath, session.get('username'))
+        
+        return send_file(filepath, as_attachment=True,
+                        download_name=f"monthly_report_{period}.xlsx")
+    except Exception as e:
+        logger.error(f"Error exporting monthly report: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/export/quarterly/<int:year>/<int:quarter>')
+@login_required
+def export_quarterly_excel(year, quarter):
+    """Export quarterly report as Excel"""
+    try:
+        data = get_quarterly_report(year, quarter)
+        generator = ExcelReportGenerator()
+        filepath = generator.generate_quarterly_report(data)
+        
+        # Log the generated report
+        period = f"Q{quarter}_{year}"
+        log_generated_report('quarterly', period, filepath, session.get('username'))
+        
+        return send_file(filepath, as_attachment=True,
+                        download_name=f"quarterly_report_{period}.xlsx")
+    except Exception as e:
+        logger.error(f"Error exporting quarterly report: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/export/yearly/<int:year>')
+@login_required
+def export_yearly_excel(year):
+    """Export yearly report as Excel"""
+    try:
+        data = get_yearly_report(year)
+        generator = ExcelReportGenerator()
+        filepath = generator.generate_yearly_report(data)
+        
+        # Log the generated report
+        period = str(year)
+        log_generated_report('yearly', period, filepath, session.get('username'))
+        
+        return send_file(filepath, as_attachment=True,
+                        download_name=f"yearly_report_{period}.xlsx")
+    except Exception as e:
+        logger.error(f"Error exporting yearly report: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 # ------------------ MAIN ------------------
 def main():
